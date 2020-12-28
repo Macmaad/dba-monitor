@@ -1,0 +1,22 @@
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar_collapse" aria-expanded="false">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand nav_active" id="navbar_brand" href="/">
+                Monitoring DBA
+            </a>
+        </div>
+        <div class="collapse navbar-collapse" id="navbar_collapse">
+            {% if not session.logged_in %}
+            <ul class="nav navbar-nav navbar-right">
+                <li class="nav_active" id="login"><a href="/login">Login</a></li>
+            </ul>
+            {% endif %}
+        </div>
+    </div>
+</nav>  
