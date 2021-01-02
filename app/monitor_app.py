@@ -1,5 +1,6 @@
 from uuid import uuid4
 from http import HTTPStatus
+from functools import wraps
 
 from flask import Flask, render_template, session, request, redirect, url_for, flash
 from flask_cors import CORS
@@ -13,6 +14,18 @@ from utils.app_utils import logger
 app = Flask(__name__)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 CORS(app)
+
+
+def is_logged_in(function):
+    @wraps(function)
+    def wrap(*args, **kwargs):
+        if "logged_in" in session:
+            return function(*args, **kwargs)
+        else:
+            flash("Unauthorized, please login", "danger")
+            return redirect(url_for("login"))
+
+    return wrap
 
 
 @app.route("/")
@@ -89,6 +102,7 @@ def login():
 
 
 @app.route("/logout")
+@is_logged_in
 def logout():
     session.clear()
     flash("You are now logged out.", "success")
@@ -96,6 +110,7 @@ def logout():
 
 
 @app.route("/monitor")
+@is_logged_in
 def monitor():
     return render_template("monitor.html")
 
