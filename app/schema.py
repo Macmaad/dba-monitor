@@ -1,7 +1,5 @@
 from wtforms import Form, StringField, PasswordField, validators
 
-GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAAA9dMeL0g/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=03y0q7CqGrReKW2xSi9CDfnTCaBKscfhRjc9Eg2EP98%3D"
-
 
 class RegistrationFormValidator(Form):
     """

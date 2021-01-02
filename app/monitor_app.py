@@ -1,16 +1,22 @@
+import os
 from uuid import uuid4
-from http import HTTPStatus
 from functools import wraps
+from datetime import datetime as dt
 
 from flask import Flask, render_template, session, request, redirect, url_for, flash
 from flask_cors import CORS
 from passlib.hash import sha256_crypt
-import requests
 
 from utils.database_interactions import execute_query
-from schema import RegistrationFormValidator, LoginFormValidator, GOOGLE_CHAT_WEBHOOK
-from utils.app_utils import logger
+from schema import RegistrationFormValidator, LoginFormValidator
+from utils.app_utils import (
+    logger,
+    read_json_file,
+    send_google_chat_message,
+    add_background_cron,
+)
 
+SECRETS = read_json_file("app/utils/secrets.json")
 app = Flask(__name__)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 CORS(app)
@@ -26,6 +32,27 @@ def is_logged_in(function):
             return redirect(url_for("login"))
 
     return wrap
+
+
+def feed_db_activity():
+    status = os.system(
+        f"echo {SECRETS['sudo_password']} | sudo -S mysql.server status >/dev/null 2>&1"
+    )
+    status = status if status == 0 else 1
+    if status:
+        send_google_chat_message(f"DB DOWN AT {dt.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    query = """
+        INSERT INTO 
+            db_active
+        (
+            db_status
+        )
+        VALUES(
+            ? 
+        )
+    """
+    execute_query(query, (status,))
 
 
 @app.route("/")
@@ -109,38 +136,84 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route(
+    "/monitor/dashboard",
+    defaults={"initial_date": None, "final_date": None},
+)
+@app.route("/monitor/dashboard/<initial_date>", defaults={"final_date": None})
+@app.route("/monitor/dashboard/<initial_date>/<final_date>")
+def monitor_dashboard_data(initial_date, final_date):
+    status_code = 500
+    if initial_date and final_date:
+        query = {
+            "query_string": """
+                SELECT 
+                    db_status
+                    , created_tms 
+                FROM 
+                    db_active 
+                WHERE
+                    created_tms >= ? 
+                    AND
+                    created_tms <= ?  
+            """,
+            "params": (
+                initial_date,
+                final_date,
+            ),
+        }
+
+    elif initial_date:
+        query = {
+            "query_string": """
+                SELECT 
+                    db_status
+                    , created_tms 
+                FROM 
+                    db_active 
+                WHERE
+                    created_tms >= ? 
+            """,
+            "params": (initial_date,),
+        }
+
+    else:
+        query = {
+            "query_string": """
+                SELECT 
+                    db_status
+                    , created_tms 
+                FROM 
+                    db_active 
+                ORDER BY 
+                    created_tms 
+                DESC 
+                LIMIT 
+                    10 
+            """,
+            "params": (),
+        }
+
+    result = execute_query(query["query_string"], query["params"])
+
+    if len(result) > 0:
+        status_code = 200
+
+    response = {"status_code": status_code, "body": result}
+    return response
+
+
 @app.route("/monitor")
 @is_logged_in
 def monitor():
     return render_template("monitor.html")
 
 
-@app.route("/messages/google-chat", methods=["POST"])
-def send_google_chat_message():
-    message = request.json.get("message")
-    response = {"statusCode": HTTPStatus.BAD_REQUEST}
-
-    if message:
-        res = requests.post(
-            GOOGLE_CHAT_WEBHOOK,
-            json={"text": message},
-            headers={"Content-Type": "application/json; charset=UTF-8"},
-        )
-
-        if res.status_code == HTTPStatus.OK:
-            logger.info("Message was sent successful", extra={"response": res.json()})
-            response = {"statusCode": HTTPStatus.OK}
-
-        else:
-            logger.error(
-                "Something went wrong sending the message",
-                extra={"response": res.json()},
-            )
-            response = {"statusCode": HTTPStatus.INTERNAL_SERVER_ERROR}
-
-    return response
+def app_handler():
+    add_background_cron(feed_db_activity, "interval", 60)
+    app.secret_key = "ultra_secret_123"
+    app.run(debug=True, use_reloader=False)
 
 
 if __name__ == "__main__":
-    app.secret_key = "ultra_secret_123"
-    app.run(debug=True)
+    app_handler()
