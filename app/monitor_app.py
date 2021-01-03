@@ -274,10 +274,10 @@ def binlogs():
 
 
 def app_handler():
-    add_background_cron(feed_db_activity, "interval", 60 * 10)
+    add_background_cron(feed_db_activity, "interval", 60)
     add_background_cron(get_binlog_data, "interval", 60 * 30)
     app.secret_key = "ultra_secret_123"
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)
 
 
 if __name__ == "__main__":

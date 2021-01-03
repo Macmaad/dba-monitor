@@ -40,7 +40,7 @@ function getDBStatus() {
     })
 }
 
-getDBStatus()
+setInterval(getDBStatus, 1000)
 
 function loadBinLogs(rows = 10) {
     var url, response; 
