@@ -5,3 +5,4 @@ passlib==1.7.4
 logmatic-python==0.1.7
 requests==2.25.1
 apscheduler==3.6.3
+Flask-Cache==0.13.1

@@ -1,4 +1,5 @@
 import os
+import json
 from uuid import uuid4
 from functools import wraps
 from datetime import datetime as dt
@@ -20,6 +21,61 @@ SECRETS = read_json_file("app/utils/secrets.json")
 app = Flask(__name__)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 CORS(app)
+
+
+def send_bin_to_txt(files):
+    for file in files:
+        file_data = os.popen(
+            f"echo {SECRETS['sudo_password']}| sudo -S mysqlbinlog /usr/local/mysql/data/{file}"
+        ).read()
+        with open("app/bin_logs.txt", "a") as append_file:
+            append_file.write(file_data)
+
+        query = """
+            INSERT INTO 
+                binlog_files
+            (
+                file_name
+            )
+            VALUES 
+            (
+                ?
+            )
+        """
+        execute_query(query, (str(file),))
+
+
+def get_known_binlog_files():
+    query = """
+        SELECT 
+            file_name 
+        FROM 
+            binlog_files
+    """
+    result = execute_query(query)
+    result = [x[0] for x in result]
+    os.system(
+        f"echo {SECRETS['sudo_password']} | sudo -S mysql.server restart >/dev/null 2>&1"
+    )
+    return result
+
+
+def get_binlog_data():
+    new_files = []
+    bin_log_file = (
+        os.popen(
+            f"echo {SECRETS['sudo_password']} | sudo -S ls /usr/local/mysql/data | grep binlog"
+        )
+        .read()
+        .split("\n")
+    )
+
+    existing_binlogs = get_known_binlog_files()
+    for file in bin_log_file:
+        if file not in existing_binlogs and file != "":
+            new_files.append(file)
+    logger.info("Sending new file", extra={"file_name": new_files})
+    send_bin_to_txt(new_files)
 
 
 def is_logged_in(function):
@@ -209,10 +265,19 @@ def monitor():
     return render_template("monitor.html")
 
 
+@app.route("/binlogs", methods=["POST"])
+def binlogs():
+    rows = json.loads(request.data)
+    rows = int(rows.get("rows", 10))
+    file_data = os.popen(f"tail -{rows} app/bin_logs.txt").read()
+    return {"body": file_data}
+
+
 def app_handler():
-    add_background_cron(feed_db_activity, "interval", 60)
+    add_background_cron(feed_db_activity, "interval", 60 * 10)
+    add_background_cron(get_binlog_data, "interval", 60 * 30)
     app.secret_key = "ultra_secret_123"
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=True)
 
 
 if __name__ == "__main__":
