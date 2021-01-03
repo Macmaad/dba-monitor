@@ -1,5 +1,30 @@
 {% extends 'base.html' %}
 
 {% block body %}
+<center>
+    <h2>
+        Database Information.
+    </h2>
+</center>
 
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-6 text-right">
+            <label for="">DB STATUS: </label>
+            <label id="db-status"></label>
+        </div>
+        <div class="col-md-6">
+            <label for="">Showing:</label>
+            <input type="text" placeholder="10" id="showing-logs">
+            <label for="">logs.</label>
+        </div>
+    </div>
+</div>
+
+<div class="pre-scrollable" style="max-height: 600px;margin: 15px;" id="logs">
+    
+</div>
+
+
+<script type=text/javascript src="{{url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
